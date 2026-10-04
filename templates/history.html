@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Analysis History - AI-Powered Phishing Investigation Lab</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <div class="lab-container">
+    <header class="lab-header">
+      <div class="header-brand">
+        <span class="soc-tag">CYBERSECURITY INVESTIGATION LAB</span>
+        <h1>Analysis History & Audit Log</h1>
+        <p class="subtitle">Chronological Record of Phishing Investigations</p>
+      </div>
+      <nav class="lab-nav">
+        <a href="/" class="nav-link">Investigation Lab</a>
+        <a href="/history" class="nav-link active">Analysis History</a>
+      </nav>
+    </header>
+
+    <main class="lab-main">
+      <div class="panel">
+        <div class="table-header-flex">
+          <h2>Investigation Records</h2>
+          <button class="btn btn-secondary" onclick="loadHistory()">Refresh Records</button>
+        </div>
+        <div class="table-responsive">
+          <table class="history-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Timestamp</th>
+                <th>Type</th>
+                <th>Input Preview</th>
+                <th>Risk Score</th>
+                <th>Risk Level</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="historyBody">
+              <tr>
+                <td colspan="7" class="text-center">Loading audit history...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+  <script src="/static/js/app.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', loadHistory);
+  </script>
+</body>
+</html>

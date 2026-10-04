@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI-Powered Phishing Investigation Lab</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <div class="lab-container">
+    <header class="lab-header">
+      <div class="header-brand">
+        <span class="soc-tag">CYBERSECURITY INVESTIGATION LAB</span>
+        <h1>AI-Powered Phishing Investigation Lab</h1>
+        <p class="subtitle">Explainable Email & URL Threat Analysis</p>
+      </div>
+      <nav class="lab-nav">
+        <a href="/" class="nav-link active">Investigation Lab</a>
+        <a href="/history" class="nav-link">Analysis History</a>
+      </nav>
+    </header>
+
+    <div class="warning-banner">
+      <span class="warning-icon">⚠</span>
+      <span>Use only safe, synthetic examples. Do not submit passwords, private credentials, or sensitive information.</span>
+    </div>
+
+    <main class="lab-main">
+      <section class="panel input-panel">
+        <div class="tab-control">
+          <button class="tab-btn active" id="tabEmail" onclick="switchInputMode('email')">Email Analysis</button>
+          <button class="tab-btn" id="tabUrl" onclick="switchInputMode('url')">URL Analysis</button>
+        </div>
+
+        <div id="emailInputGroup" class="input-group">
+          <label for="emailInput">Paste Email Content (Headers + Body):</label>
+          <textarea id="emailInput" rows="9" placeholder="Paste full email message here..."></textarea>
+        </div>
+
+        <div id="urlInputGroup" class="input-group hidden">
+          <label for="urlInput">Target URL to Investigate:</label>
+          <input type="text" id="urlInput" placeholder="https://secure-account-verification.example.com/login" />
+        </div>
+
+        <div class="action-bar">
+          <div class="primary-actions">
+            <button id="btnAnalyze" class="btn btn-primary" onclick="runAnalysis()">Analyze Threat</button>
+            <button class="btn btn-secondary" onclick="clearInput()">Clear</button>
+          </div>
+          <div class="sample-actions">
+            <span class="sample-label">Load Synthetic Sample:</span>
+            <button class="btn btn-outline" onclick="loadSample('high')">High Risk (Suspension)</button>
+            <button class="btn btn-outline" onclick="loadSample('medium')">Medium Risk</button>
+            <button class="btn btn-outline" onclick="loadSample('low')">Low Risk (Benign)</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="resultsSection" class="results-container hidden">
+        <div class="panel score-panel">
+          <div class="score-header">
+            <div>
+              <h2>Investigation Findings</h2>
+              <p class="input-type-tag" id="resInputType">ANALYZED EMAIL</p>
+            </div>
+            <div class="score-badge" id="riskBadge">
+              <span id="riskScore">0</span><span class="score-max">/100</span>
+              <div id="riskLevel" class="risk-level-text">LOW</div>
+            </div>
+          </div>
+
+          <div class="score-breakdown-box">
+            <h3>Explainable Score Breakdown</h3>
+            <div id="breakdownList" class="breakdown-list"></div>
+          </div>
+        </div>
+
+        <div class="panel indicators-panel">
+          <h3>Detected Threat Indicators</h3>
+          <div id="indicatorCards" class="indicator-grid"></div>
+        </div>
+
+        <div id="urlAnalysisPanel" class="panel url-details-panel hidden">
+          <h3>URL Structural Heuristics</h3>
+          <div class="table-responsive">
+            <table class="url-metrics-table">
+              <thead>
+                <tr>
+                  <th>Characteristic</th>
+                  <th>Value</th>
+                  <th>Assessment</th>
+                </tr>
+              </thead>
+              <tbody id="urlMetricsBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="panel ai-panel">
+          <div class="ai-header">
+            <h3>AI/NLP Forensic Synthesis</h3>
+            <span class="provider-pill" id="aiProvider">AI Analyst</span>
+          </div>
+          <div class="ai-body">
+            <p id="aiShortExp" class="ai-lead"></p>
+            <div class="ai-meta-grid">
+              <div class="ai-meta-card">
+                <h4>Core Deception Vector</h4>
+                <p id="aiBehavior"></p>
+              </div>
+              <div class="ai-meta-card">
+                <h4>Key Signals</h4>
+                <ul id="aiKeySignals"></ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel recommendation-panel">
+          <h3>Recommended SOC / User Action</h3>
+          <p id="recommendationText" class="recommendation-content"></p>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>

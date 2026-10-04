@@ -1,0 +1,6 @@
+{
+  "name": "AI-Powered Phishing Investigation Lab",
+  "description": "Explainable email & URL threat analysis platform with transparent rule scoring, URL heuristics, and AI-assisted insights.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
