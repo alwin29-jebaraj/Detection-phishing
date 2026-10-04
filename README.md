@@ -1,6 +1,6 @@
 # AI-Powered Phishing Investigation Lab
 
-An educational cybersecurity threat analysis platform that evaluates emails and URLs for phishing indicators with **explainable scoring**, transparent evidence breakdowns, URL heuristics, and modular AI/NLP synthesis.
+An educational cybersecurity threat analysis platform that evaluates emails and URLs for phishing indicators with **explainable scoring**, transparent evidence breakdowns, URL heuristics, modular AI/NLP synthesis, **multi-turn Gemini AI chat**, and **professional PDF incident reports**.
 
 ---
 
@@ -20,7 +20,7 @@ The **AI-Powered Phishing Investigation Lab** is engineered around the principle
 
 ---
 
-## 2. Features
+## 2. Key Features
 
 - **Multi-Vector Analysis:**
   - **Email Investigation:** Analyzes headers (Subject, From, Reply-To), body text, urgency patterns, threat statements, credential lures, and financial solicitations.
@@ -28,15 +28,22 @@ The **AI-Powered Phishing Investigation Lab** is engineered around the principle
 - **Explainable Scoring System:**
   - 4 transparent risk tiers: **LOW** (0–24), **MEDIUM** (25–49), **HIGH** (50–74), and **CRITICAL** (75–100).
   - Itemized mathematical ledger detailing every point contribution with matched text evidence.
+- **Interactive Multi-Turn Gemini AI Chatbot:**
+  - Connected via `@google/genai` on the backend (`POST /api/chat`).
+  - Supports **Gemini 3.5 Flash** for general reasoning and **Gemini 3.1 Flash Lite** for high-speed queries.
+  - Dynamically passes the active check context so users can ask specific questions about the flagged email or link.
+  - Suggests defensive action plans, drafts employee warning alerts, and answers cybersecurity hygiene questions.
+- **Professional PDF Report Generator:**
+  - Client-side vector PDF generation powered by `jspdf`.
+  - Generates polished documentation with incident header, risk score summary badge, executive threat briefing, itemized indicator table, and standardized ASCII report archival block.
 - **Dual-Engine Architecture:**
   - **Deterministic Rule Engine:** Guaranteed, offline-capable analysis that operates reliably without cloud dependencies.
-  - **AI/NLP Synthesis (Gemini 3.8 Flash):** Translates structured rule findings into conversational threat briefings without overriding the deterministic score.
-- **Forensic Report Generation:**
-  - Generates standardized ASCII Phishing Analysis Reports formatted for SOC incident ticketing systems.
+  - **AI/NLP Synthesis:** Translates structured rule findings into conversational threat briefings without overriding the deterministic score.
 - **Audit History & Database:**
   - SQLite persistent storage logging past investigations, timestamps, risk classifications, and indicators without storing user passwords or private tokens.
+  - Search by keyword or ID, filter by risk severity, and inspect or export past records.
 - **Live Automated Unit Test Suite:**
-  - Integrated verification suite validating urgency, threats, credential requests, URL heuristics, and synthetic test cases.
+  - Integrated verification suite running 18 Python tests in milliseconds covering urgency regexes, suspension threats, credential lures, URL heuristics, and scoring formula verification.
 
 ---
 
@@ -51,21 +58,20 @@ The **AI-Powered Phishing Investigation Lab** is engineered around the principle
               ↓
   [ Explainable Risk Scorer ] (Calculates 0-100 Score & Point Breakdown)
               ↓
-  [ AI / NLP Synthesis Engine ] (Gemini 3.8 Flash or Deterministic Fallback)
+  [ AI / NLP Synthesis Engine ] (Gemini 3.5 Flash / 3.8 Flash or Deterministic Fallback)
               ↓
-  [ Standardized Phishing Analysis Report & SQLite Persistence ]
+  [ Multi-Turn Gemini Chatbot & Professional PDF Generator & SQLite Persistence ]
 ```
 
 ---
 
 ## 4. Technology Stack
 
-- **Backend:** Python 3.10+, Flask 3.0+, Werkzeug
-- **AI/NLP:** Google GenAI SDK (`gemini-3.8-flash`) with automatic offline deterministic fallback
-- **Database:** SQLite3
-- **Frontend:** Responsive Cybersecurity SOC Interface (HTML5, CSS3, Modern Dark Theme, Vanilla JS / React)
-- **Deployment:** Render (configured via `Procfile` and `gunicorn`)
-- **Testing:** Python `unittest` test suite
+- **Frontend:** React 19, TypeScript, Tailwind CSS, Lucide Icons, `jspdf`
+- **Backend Server:** Node.js, Express, `tsx`, `@google/genai` SDK
+- **Python Forensic Engine:** Python 3.10+, Flask 3.0+, `unittest`
+- **Database:** SQLite3 (`phishing_lab.db`)
+- **AI Models:** Google Gemini 3.5 Flash & Gemini 3.1 Flash Lite
 
 ---
 
@@ -73,55 +79,43 @@ The **AI-Powered Phishing Investigation Lab** is engineered around the principle
 
 ```text
 phishing-investigation-lab/
+├── src/
+│   ├── App.tsx                    # Main React UI with Checker, Chat, History, Tests, & PDF
+│   ├── main.tsx                   # React client mounting entrypoint
+│   └── index.css                  # Tailwind styles and custom utilities
+├── server.ts                      # Express API server & Gemini SDK bridge
 ├── app.py                         # Flask REST API & Web Application entrypoint
-├── requirements.txt               # Production Python dependencies
-├── Procfile                       # Render deployment configuration
-├── README.md                      # Complete documentation & operational manual
-├── .gitignore                     # Git ignore rules
-│
 ├── database/
 │   ├── __init__.py
 │   └── database.py                # SQLite schema, migrations, and query helpers
-│
 ├── analyzers/
 │   ├── __init__.py
 │   ├── indicator_extractor.py     # Regex tokenizer, email headers, URL extraction
 │   ├── rule_engine.py             # Deterministic urgency, threat & credential rules
 │   ├── url_analyzer.py            # Static structural URL heuristics & TLD parser
 │   └── ai_analyzer.py             # Gemini AI synthesis with deterministic fallback
-│
 ├── scoring/
 │   ├── __init__.py
 │   └── risk_scorer.py             # Explainable scoring calculation & ASCII reports
-│
 ├── models/
 │   ├── __init__.py
 │   └── analysis.py                # Dataclasses (Indicator, URLAnalysisResult, etc.)
-│
-├── templates/
-│   ├── index.html                 # Flask investigation console template
-│   └── history.html               # Flask audit history template
-│
-├── static/
-│   ├── css/style.css              # Cyber SOC dark aesthetic styling
-│   └── js/app.js                  # Frontend state machine and API client
-│
-└── tests/
-    ├── __init__.py
-    ├── test_rules.py              # Rule engine unit tests
-    ├── test_url_analyzer.py       # URL heuristics unit tests
-    └── test_scoring.py            # Scoring formula and synthetic case tests
+├── tests/
+│   ├── __init__.py
+│   ├── test_rules.py              # Rule engine unit tests
+│   ├── test_url_analyzer.py       # URL heuristics unit tests
+│   └── test_scoring.py            # Scoring formula and synthetic case tests
+├── package.json                   # Node.js dependencies & scripts
+├── requirements.txt               # Production Python dependencies
+├── Procfile                       # Deployment configuration
+└── README.md                      # Complete documentation & operational manual
 ```
 
 ---
 
-## 6. Installation & Running Locally (Python / Flask)
+## 6. Installation & Running Locally
 
-### Prerequisites
-- Python 3.10 or higher
-- Git
-
-### Steps
+### Node.js / React Full-Stack Environment
 
 1. **Clone the repository:**
    ```bash
@@ -129,113 +123,23 @@ phishing-investigation-lab/
    cd phishing-investigation-lab
    ```
 
-2. **Create and activate a virtual environment:**
+2. **Install dependencies:**
    ```bash
-   python3 -m venv venv
-   source venv/bin/activate   # On Windows: venv\Scripts\activate
+   npm install
    ```
 
-3. **Install dependencies:**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. **Configure Environment Variables (Optional for AI features):**
+3. **Configure Environment Variables (Optional):**
    ```bash
    export GEMINI_API_KEY="your-gemini-api-key"
    ```
-   *(Note: If `GEMINI_API_KEY` is omitted, the application seamlessly runs using its built-in deterministic NLP synthesizer).*
 
-5. **Run the application:**
+4. **Start the development server:**
    ```bash
-   python app.py
+   npm run dev
    ```
+   Navigate to `http://localhost:3000`.
 
-6. **Access in browser:**
-   Navigate to `http://localhost:5000`.
-
----
-
-## 7. REST API Documentation
-
-### 1. Analyze Email
-- **Endpoint:** `POST /api/analyze/email`
-- **Payload:**
-  ```json
-  {
-    "content": "Subject: Urgent: Your Account Will Be Suspended\nDear Customer...\nhttps://secure-account-verification.example.com/login"
-  }
-  ```
-- **Response:**
-  ```json
-  {
-    "id": 1,
-    "input_type": "email",
-    "risk_score": 87,
-    "risk_level": "HIGH",
-    "indicators": [
-      {
-        "indicator": "Urgent language",
-        "category": "urgency",
-        "severity": "medium",
-        "points": 12,
-        "evidence": "\"immediately\" in: ...Verify your account immediately using the link below:..."
-      }
-    ],
-    "score_breakdown": [
-      { "indicator": "Urgent language", "points": 12, "evidence": "..." }
-    ],
-    "ai_explanation": {
-      "short_explanation": "...",
-      "main_suspicious_behavior": "...",
-      "most_important_indicators": ["..."],
-      "recommended_action": "..."
-    },
-    "recommendation": "DO NOT click any embedded links..."
-  }
-  ```
-
-### 2. Analyze URL
-- **Endpoint:** `POST /api/analyze/url`
-- **Payload:**
-  ```json
-  {
-    "url": "https://secure-account-verification.example.com/login"
-  }
-  ```
-
-### 3. Get Analysis History
-- **Endpoint:** `GET /api/history?limit=50&offset=0`
-
-### 4. Get Investigation Detail
-- **Endpoint:** `GET /api/history/<id>`
-
-### 5. Health Check
-- **Endpoint:** `GET /api/health`
-
----
-
-## 8. Database Structure
-
-Stored in SQLite (`phishing_lab.db`):
-
-| Column | Type | Description |
-|---|---|---|
-| `id` | INTEGER PRIMARY KEY | Unique auto-incremented investigation identifier |
-| `input_type` | TEXT | Analysis category (`email` or `url`) |
-| `input_data` | TEXT | Sanitized excerpt of analyzed input |
-| `risk_score` | INTEGER | Final capped score (0–100) |
-| `risk_level` | TEXT | Category label (`LOW`, `MEDIUM`, `HIGH`, `CRITICAL`) |
-| `indicators_json` | TEXT (JSON) | Serialized list of detected indicator objects |
-| `score_breakdown_json` | TEXT (JSON) | Array of itemized point adjustments |
-| `url_analysis_json` | TEXT (JSON) | Structured results from static URL inspection |
-| `ai_explanation_json` | TEXT (JSON) | Natural language synthesis generated by AI/fallback |
-| `recommendation` | TEXT | Actionable defensive protocol for the user |
-| `created_at` | DATETIME | Timestamp of investigation |
-
----
-
-## 9. Running Tests
+### Python Automated Unit Tests
 
 To run the complete automated test suite:
 
@@ -245,41 +149,17 @@ python3 -m unittest discover tests
 
 Output:
 ```text
-Ran 18 tests in 0.008s
+..................
+----------------------------------------------------------------------
+Ran 18 tests in 0.009s
+
 OK
 ```
 
 ---
 
-## 10. Render Deployment Instructions
-
-This application is ready for zero-configuration deployment to [Render](https://render.com):
-
-1. Push your repository to **GitHub**.
-2. Log in to the [Render Dashboard](https://dashboard.render.com).
-3. Click **New +** → **Web Service**.
-4. Connect your GitHub repository.
-5. Configure the build parameters:
-   - **Environment:** `Python 3`
-   - **Build Command:** `pip install -r requirements.txt`
-   - **Start Command:** `gunicorn app:app`
-6. *(Optional)* Add Environment Variable:
-   - Key: `GEMINI_API_KEY`
-   - Value: `your-api-key`
-7. Click **Create Web Service**. Render will provision and launch the service with automatic SSL certificate management.
-
----
-
-## 11. Security Limitations & Educational Scope
+## 7. Security Limitations & Educational Scope
 
 - **Static Heuristics Only:** This tool does not execute JavaScript, establish socket connections, or trigger active web crawling.
 - **Evasion Caveat:** Advanced persistent threats (APTs) using legitimate compromised infrastructure or zero-day obfuscation may not be caught by static heuristics alone.
 - **Privacy Assurance:** Submitted text is never sent to third-party tracking services or stored in external telemetry aggregators.
-
----
-
-## 12. Future Improvements
-
-- Add SPF, DKIM, and DMARC DNS record lookup integration for live header validation.
-- Implement optical character recognition (OCR) for embedded screenshot and QR-code (quishing) lures.
-- Export to STIX 2.1 / TAXII feeds for SOC SIEM integration.

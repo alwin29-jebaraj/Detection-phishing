@@ -12,6 +12,24 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+      // Suppress benign Vite HMR websocket proxy disconnect errors in sandbox environment
+      window.addEventListener('unhandledrejection', function (e) {
+        var reasonStr = String(e.reason || '');
+        var msgStr = String(e.reason && e.reason.message || '');
+        if (reasonStr.indexOf('WebSocket') !== -1 || msgStr.indexOf('WebSocket') !== -1) {
+          e.stopImmediatePropagation();
+          e.preventDefault();
+        }
+      });
+      window.addEventListener('error', function (e) {
+        var msg = String(e.message || '');
+        if (msg.indexOf('WebSocket') !== -1) {
+          e.stopImmediatePropagation();
+          e.preventDefault();
+        }
+      });
+    </script>
   </head>
   <body class="bg-slate-950 text-slate-100 antialiased selection:bg-cyan-500/20 selection:text-cyan-200">
     <div id="root"></div>
