@@ -43,7 +43,12 @@ import {
   FileDown,
   Bot,
   User,
-  Zap
+  Zap,
+  Clock,
+  MousePointerClick,
+  KeyRound,
+  Calculator,
+  Scale
 } from 'lucide-react';
 
 interface Indicator {
@@ -151,6 +156,147 @@ interface ChatMessage {
   timestamp: string;
 }
 
+interface ThreatCategoryAnalysis {
+  id: string;
+  name: string;
+  categoryLabel: string;
+  flagged: boolean;
+  points: number;
+  evidence: string[];
+  whyAttackersUseThis: string;
+  howToIdentify: string;
+  details: string;
+}
+
+function getThreatCategoryAnalysis(result: AnalysisResult | null): ThreatCategoryAnalysis[] {
+  if (!result) return [];
+
+  const indicators = result.indicators || [];
+
+  // 1. Urgent language
+  const urgentInds = indicators.filter(
+    (i) =>
+      i.category === 'urgency' ||
+      /urgent|immediate|right now|deadline|countdown|expires today|act now|hours?/i.test(i.indicator)
+  );
+  const urgentFlagged = urgentInds.length > 0;
+  const urgentPoints = urgentInds.reduce((sum, i) => sum + i.points, 0);
+
+  // 2. Account threat
+  const threatInds = indicators.filter(
+    (i) =>
+      i.category === 'threat' ||
+      /suspend|threat|lock|block|terminate|unusual activity|unrecognized|security violation|punitive|punishment/i.test(
+        i.indicator
+      )
+  );
+  const threatFlagged = threatInds.length > 0;
+  const threatPoints = threatInds.reduce((sum, i) => sum + i.points, 0);
+
+  // 3. Login request & Call-to-Action
+  const loginInds = indicators.filter(
+    (i) =>
+      i.category === 'call_to_action' ||
+      /login|sign[- ]in|click here|cta|action demand|portal|review activity/i.test(i.indicator)
+  );
+  const loginFlagged = loginInds.length > 0;
+  const loginPoints = loginInds.reduce((sum, i) => sum + i.points, 0);
+
+  // 4. Credential request
+  const credInds = indicators.filter(
+    (i) =>
+      i.category === 'credential' ||
+      i.category === 'financial' ||
+      /credential|password|passcode|verify account|pin|bank|card|cvv|refund/i.test(i.indicator)
+  );
+  const credFlagged = credInds.length > 0;
+  const credPoints = credInds.reduce((sum, i) => sum + i.points, 0);
+
+  // 5. Suspicious URL / Link tactics
+  const urlInds = indicators.filter(
+    (i) =>
+      i.category === 'url' ||
+      i.category === 'security' ||
+      /url|domain|subdomain|ip|hyphen|tld|http|port/i.test(i.indicator)
+  );
+  const urlFlagged =
+    urlInds.length > 0 || Boolean(result.url_analysis && result.url_analysis.indicators && result.url_analysis.indicators.length > 0);
+  const urlPoints = urlInds.reduce((sum, i) => sum + i.points, 0);
+
+  return [
+    {
+      id: 'urgent_language',
+      name: 'Urgent Language',
+      categoryLabel: 'Psychological Panic',
+      flagged: urgentFlagged,
+      points: urgentPoints,
+      evidence: urgentInds.map((i) => i.evidence),
+      whyAttackersUseThis:
+        'Scammers use artificial deadlines (e.g. "immediately", "within 24 hours") to induce panic so victims react before evaluating legitimacy.',
+      howToIdentify: 'Look for words like "urgent", "immediate action required", or ticking countdown timers.',
+      details: urgentFlagged
+        ? `Found ${urgentInds.length} urgency signal(s) demanding rapid compliance (+${urgentPoints} pts).`
+        : 'No artificial panic markers or artificial countdown pressure detected.',
+    },
+    {
+      id: 'account_threat',
+      name: 'Account Threat / Suspension',
+      categoryLabel: 'Fear & Loss Intimidation',
+      flagged: threatFlagged,
+      points: threatPoints,
+      evidence: threatInds.map((i) => i.evidence),
+      whyAttackersUseThis:
+        'Threatening account suspension, termination, or penalties triggers an emotional panic response to force quick action.',
+      howToIdentify: 'Statements claiming "your account will be suspended today" or "access will be permanently revoked".',
+      details: threatFlagged
+        ? `Found ${threatInds.length} threat signal(s) warning of punitive account loss (+${threatPoints} pts).`
+        : 'No threats of account cancellation, lockout, or penalties detected.',
+    },
+    {
+      id: 'login_request',
+      name: 'Login Request / Call-to-Action',
+      categoryLabel: 'Deceptive Redirection',
+      flagged: loginFlagged,
+      points: loginPoints,
+      evidence: loginInds.map((i) => i.evidence),
+      whyAttackersUseThis:
+        'Phishers provide convenient "Click Here" or "Log In Now" links to channel victims directly into attacker-controlled phishing portals.',
+      howToIdentify: 'Generic "Click Here to update" links instead of asking you to visit official websites independently.',
+      details: loginFlagged
+        ? `Found ${loginInds.length} call-to-action link solicitation(s) (+${loginPoints} pts).`
+        : 'No deceptive "Click Here" links or urgent sign-in solicitations found.',
+    },
+    {
+      id: 'credential_request',
+      name: 'Credential Harvesting',
+      categoryLabel: 'Secret Theft',
+      flagged: credFlagged,
+      points: credPoints,
+      evidence: credInds.map((i) => i.evidence),
+      whyAttackersUseThis:
+        'The primary goal of phishing is stealing secret credentials—passwords, account verifications, or banking details—to take over accounts.',
+      howToIdentify: 'Direct prompts to verify passwords, confirm security questions, or submit payment card numbers.',
+      details: credFlagged
+        ? `Found ${credInds.length} credential or account verification prompt(s) (+${credPoints} pts).`
+        : 'No prompts asking for passwords, credentials, or sensitive banking details.',
+    },
+    {
+      id: 'suspicious_url',
+      name: 'Suspicious Web Link / URL',
+      categoryLabel: 'Domain Deception',
+      flagged: urlFlagged,
+      points: urlPoints,
+      evidence: urlInds.map((i) => i.evidence),
+      whyAttackersUseThis:
+        'Attackers register misleading domains with hyphens, copied brand names in subdomains, or raw IP addresses to impersonate legitimate services.',
+      howToIdentify: 'Check the real domain before the first single slash (e.g., brand.attacker-site.com belongs to attacker-site.com).',
+      details: urlFlagged
+        ? `Found ${urlInds.length} suspicious link characteristic(s) or structural deception marker(s) (+${urlPoints} pts).`
+        : 'No suspicious URL structural tricks, raw numerical IP hosts, or brand spoofing found.',
+    },
+  ];
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<'check' | 'chat' | 'history' | 'tests' | 'guide'>('check');
   const [inputMode, setInputMode] = useState<'email' | 'url'>('email');
@@ -164,6 +310,7 @@ export default function App() {
   const [selectedClue, setSelectedClue] = useState<string | null>(null);
   const [resultTab, setResultTab] = useState<'summary' | 'clues' | 'link_details' | 'score_math'>('summary');
   const [showFullReportModal, setShowFullReportModal] = useState(false);
+  const [showBenchmarkComparison, setShowBenchmarkComparison] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
   // Chatbot State
@@ -375,6 +522,40 @@ Engineering Operations Team`
     showToast(`Loaded example: ${sample.title}`);
   };
 
+  const handleRunTestCase = async (sample: TestCase) => {
+    setInputMode(sample.type);
+    if (sample.type === 'email') {
+      setEmailText(sample.content);
+    } else {
+      setUrlText(sample.content);
+    }
+    setErrorMsg(null);
+    setIsAnalyzing(true);
+    try {
+      const endpoint = sample.type === 'email' ? '/api/analyze/email' : '/api/analyze/url';
+      const payload = sample.type === 'email' ? { content: sample.content } : { url: sample.content };
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Check failed');
+      }
+
+      setAnalysisResult(data);
+      setSelectedClue(null);
+      setResultTab('summary');
+      fetchStats();
+      showToast(`Demonstrated: ${sample.title} (${data.risk_score} / 100 - ${getFriendlyLevelName(data.risk_level)})`);
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Error checking benchmark sample');
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
   const handlePasteClipboard = async () => {
     try {
       const text = await navigator.clipboard.readText();
@@ -525,7 +706,21 @@ Engineering Operations Team`
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(9);
       doc.text(recLines, margin + 4, y + 5);
-      y += recHeight + 8;
+      y += recHeight + 6;
+
+      // Disclaimer Box in PDF
+      doc.setFillColor(248, 250, 252);
+      doc.setDrawColor(203, 213, 225);
+      doc.setLineWidth(0.3);
+      const disclaimerPdfText = 'DISCLAIMER: This report is an automated heuristic and AI-assisted analysis for educational and threat-detection guidance. It is an indication and not a 100% guarantee that a message or link is safe or malicious. Always exercise caution and verify unexpected requests through trusted channels.';
+      const discPdfLines = doc.splitTextToSize(disclaimerPdfText, contentWidth - 8);
+      const discPdfHeight = discPdfLines.length * 3.8 + 5;
+      doc.roundedRect(margin, y, contentWidth, discPdfHeight, 2, 2, 'FD');
+      doc.setTextColor(100, 116, 139);
+      doc.setFont('helvetica', 'italic');
+      doc.setFontSize(7.5);
+      doc.text(discPdfLines, margin + 4, y + 4);
+      y += discPdfHeight + 8;
 
       // Section: Flagged Threat Indicators
       doc.setTextColor(15, 23, 42);
@@ -914,6 +1109,125 @@ Engineering Operations Team`
         {/* TAB 1: MAIN CHECKER */}
         {activeTab === 'check' && (
           <div className="space-y-6">
+            {/* Demonstration & Benchmark Cases Showcase */}
+            <div className="rounded-xl bg-slate-900 border border-slate-800 p-4 shadow-xl space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-800">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-blue-400 flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5" />
+                      Live Demonstration Cases (Test & Compare)
+                    </span>
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-950 text-blue-300 border border-blue-900">
+                      3 Benchmarks
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Test and demonstrate the system against the 3 standard security tiers: High-risk phishing, Medium-risk suspicious, and Low-risk/benign message.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowBenchmarkComparison(true)}
+                  className="px-3 py-1.5 rounded-lg bg-slate-850 hover:bg-slate-800 text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-700 shrink-0 self-start sm:self-auto"
+                >
+                  <Scale className="w-3.5 h-3.5 text-blue-400" />
+                  Compare All 3 Side-by-Side
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {/* Case 1: High-Risk Phishing */}
+                <div className="p-3.5 rounded-xl bg-slate-950/90 border border-rose-900/50 hover:border-rose-500/70 transition-all flex flex-col justify-between space-y-3">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-bold text-rose-300 flex items-center gap-1.5">
+                        <AlertTriangle className="w-3.5 h-3.5 text-rose-400" />
+                        1. High-Risk Phishing
+                      </span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-950 text-rose-300 border border-rose-800">
+                        High Danger (~87/100)
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      Manufactures extreme panic with urgent suspension threats and a fake password verification portal link.
+                    </p>
+                    <div className="text-[10px] text-rose-400/90 font-mono bg-rose-950/30 p-1.5 rounded border border-rose-900/30">
+                      Triggers: Urgent language, Account threat, Credential prompt, Deceptive link
+                    </div>
+                  </div>
+                  <div className="pt-2 border-t border-slate-800/80">
+                    <button
+                      onClick={() => handleRunTestCase(testCases[0])}
+                      disabled={isAnalyzing}
+                      className="w-full py-2 px-3 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-md shadow-rose-950 transition-all disabled:opacity-50"
+                    >
+                      <Play className="w-3 h-3" /> Run High-Risk Test
+                    </button>
+                  </div>
+                </div>
+
+                {/* Case 2: Medium-Risk Suspicious */}
+                <div className="p-3.5 rounded-xl bg-slate-950/90 border border-amber-900/50 hover:border-amber-500/70 transition-all flex flex-col justify-between space-y-3">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
+                        <AlertCircle className="w-3.5 h-3.5 text-amber-400" />
+                        2. Medium-Risk Suspicious
+                      </span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-950 text-amber-300 border border-amber-800">
+                        Caution (~39/100)
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      Warns of an unfamiliar device login and urges clicking a button to review account activity.
+                    </p>
+                    <div className="text-[10px] text-amber-400/90 font-mono bg-amber-950/30 p-1.5 rounded border border-amber-900/30">
+                      Triggers: Security review alert, Call-to-action link, Subdomain redirect
+                    </div>
+                  </div>
+                  <div className="pt-2 border-t border-slate-800/80">
+                    <button
+                      onClick={() => handleRunTestCase(testCases[1])}
+                      disabled={isAnalyzing}
+                      className="w-full py-2 px-3 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-md shadow-amber-950 transition-all disabled:opacity-50"
+                    >
+                      <Play className="w-3 h-3" /> Run Medium-Risk Test
+                    </button>
+                  </div>
+                </div>
+
+                {/* Case 3: Low-Risk Benign */}
+                <div className="p-3.5 rounded-xl bg-slate-950/90 border border-emerald-900/50 hover:border-emerald-500/70 transition-all flex flex-col justify-between space-y-3">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-bold text-emerald-300 flex items-center gap-1.5">
+                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                        3. Low-Risk / Benign Message
+                      </span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800">
+                        Safe (0/100)
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      Routine weekly internal engineering digest without urgency markers, threats, or password prompts.
+                    </p>
+                    <div className="text-[10px] text-emerald-400/90 font-mono bg-emerald-950/30 p-1.5 rounded border border-emerald-900/30">
+                      Triggers: Zero red flags, No panic, No password request, Clean
+                    </div>
+                  </div>
+                  <div className="pt-2 border-t border-slate-800/80">
+                    <button
+                      onClick={() => handleRunTestCase(testCases[2])}
+                      disabled={isAnalyzing}
+                      className="w-full py-2 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-md shadow-emerald-950 transition-all disabled:opacity-50"
+                    >
+                      <Play className="w-3 h-3" /> Run Benign Test
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* Input Box */}
             <div className="rounded-xl bg-slate-900 border border-slate-800 p-5 shadow-xl space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-slate-800">
@@ -1047,6 +1361,15 @@ Engineering Operations Team`
                   Safe Check: We never click or open the links you enter.
                 </div>
               </div>
+
+              {/* Disclaimer Advisory Banner */}
+              <div className="p-3.5 rounded-xl bg-slate-950/90 border border-slate-800 text-xs text-slate-400 flex items-start gap-3">
+                <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                <div className="leading-relaxed">
+                  <strong className="text-slate-300">Security Advisory & Disclaimer: </strong>
+                  This assessment is an automated heuristic and AI-assisted analysis provided for educational and threat-detection guidance. It is an indication and not a 100% guarantee that a message or web link is safe or malicious. Always exercise caution, verify unexpected requests through trusted out-of-band channels, and follow your organization's formal security protocols.
+                </div>
+              </div>
             </div>
 
             {/* RESULTS VIEW */}
@@ -1091,6 +1414,12 @@ Engineering Operations Team`
                         Higher score = higher danger
                       </span>
                     </div>
+                  </div>
+
+                  {/* Result Disclaimer Notice */}
+                  <div className="flex items-center gap-2 text-[11px] text-slate-400 px-3.5 py-2 rounded-lg bg-slate-950 border border-slate-800">
+                    <Info className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                    <span><strong>Security Notice:</strong> Automated heuristic and AI-assisted analysis for indication and guidance only — not a 100% guarantee of safety or malice. Always verify unexpected requests through trusted channels.</span>
                   </div>
 
                   {/* Visual Friendly Score Meter */}
@@ -1261,6 +1590,93 @@ Engineering Operations Team`
                           </div>
                         </div>
                       </div>
+
+                      {/* WHY WAS THIS FLAGGED - 5 CORE THREAT CATEGORIES */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 pb-2 border-b border-slate-800/80">
+                          <div className="flex items-center gap-2">
+                            <ShieldAlert className="w-4 h-4 text-blue-400" />
+                            <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+                              Why Was This Flagged? (5 Core Threat Factors)
+                            </h4>
+                          </div>
+                          <span className="text-[11px] text-slate-400">
+                            {analysisResult.indicators.length > 0
+                              ? `${getThreatCategoryAnalysis(analysisResult).filter(c => c.flagged).length} of 5 threat categories triggered`
+                              : 'All 5 threat categories clean'}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {getThreatCategoryAnalysis(analysisResult).map((cat) => (
+                            <div
+                              key={cat.id}
+                              className={`p-3.5 rounded-xl border transition-all flex flex-col justify-between ${
+                                cat.flagged
+                                  ? 'bg-rose-950/20 border-rose-900/60 ring-1 ring-rose-500/20'
+                                  : 'bg-slate-900/60 border-slate-800/80'
+                              }`}
+                            >
+                              <div>
+                                <div className="flex items-start justify-between gap-2 mb-1.5">
+                                  <div className="flex items-center gap-2">
+                                    <span className={`p-1.5 rounded-lg shrink-0 ${cat.flagged ? 'bg-rose-950 text-rose-400 border border-rose-800' : 'bg-slate-800 text-slate-400'}`}>
+                                      {cat.id === 'urgent_language' && <Clock className="w-3.5 h-3.5" />}
+                                      {cat.id === 'account_threat' && <AlertTriangle className="w-3.5 h-3.5" />}
+                                      {cat.id === 'login_request' && <MousePointerClick className="w-3.5 h-3.5" />}
+                                      {cat.id === 'credential_request' && <KeyRound className="w-3.5 h-3.5" />}
+                                      {cat.id === 'suspicious_url' && <Globe className="w-3.5 h-3.5" />}
+                                    </span>
+                                    <div>
+                                      <h5 className="text-xs font-bold text-white">{cat.name}</h5>
+                                      <span className="text-[10px] text-slate-400">{cat.categoryLabel}</span>
+                                    </div>
+                                  </div>
+                                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shrink-0 ${
+                                    cat.flagged
+                                      ? 'bg-rose-900/80 text-rose-200 border border-rose-700'
+                                      : 'bg-emerald-950 text-emerald-300 border border-emerald-800'
+                                  }`}>
+                                    {cat.flagged ? (
+                                      <>
+                                        <AlertCircle className="w-3 h-3 text-rose-300" />
+                                        FLAGGED (+{cat.points} pts)
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Check className="w-3 h-3 text-emerald-400" />
+                                        CLEAN (0 pts)
+                                      </>
+                                    )}
+                                  </span>
+                                </div>
+
+                                <p className="text-[11px] text-slate-300 mt-2 leading-relaxed">
+                                  {cat.details}
+                                </p>
+
+                                {/* Matched Evidence Snippets */}
+                                {cat.flagged && cat.evidence.length > 0 && (
+                                  <div className="mt-2 p-2 rounded bg-slate-950/80 border border-slate-800 font-mono text-[10px] text-blue-300 space-y-1">
+                                    <span className="text-slate-500 font-sans font-semibold block text-[10px]">
+                                      Exact text matched:
+                                    </span>
+                                    {cat.evidence.slice(0, 2).map((ev, i) => (
+                                      <div key={i} className="truncate">"{ev}"</div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Why Attackers Use This */}
+                              <div className="mt-2.5 pt-2 border-t border-slate-800/80 text-[10px] text-slate-400 leading-normal">
+                                <span className="font-semibold text-slate-300">Why scammers use this: </span>
+                                {cat.whyAttackersUseThis}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   )}
 
@@ -1376,26 +1792,186 @@ Engineering Operations Team`
 
                   {/* RESULT TAB 4: SCORE CALCULATION */}
                   {resultTab === 'score_math' && (
-                    <div className="rounded-xl bg-slate-950 border border-slate-800 overflow-hidden text-xs">
-                      <div className="p-3 bg-slate-900 border-b border-slate-800 flex justify-between items-center text-slate-300 font-semibold">
-                        <span>How Your Risk Score Was Calculated</span>
-                        <span className="text-slate-400">Max Score: 100 Points</span>
-                      </div>
-                      <div className="divide-y divide-slate-850">
-                        {analysisResult.score_breakdown.map((item, idx) => (
-                          <div key={idx} className="p-3 flex items-center justify-between hover:bg-slate-900/40">
-                            <div className="space-y-0.5 max-w-lg">
-                              <span className="text-slate-200 font-semibold">{item.indicator}</span>
-                              <div className="text-[11px] text-slate-400 font-mono truncate">{item.evidence}</div>
-                            </div>
-                            <span className="font-mono font-bold text-blue-400 text-sm">+{item.points} pts</span>
+                    <div className="space-y-4">
+                      {/* Mathematical Ledger Header Banner */}
+                      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-800/80">
+                          <div className="flex items-center gap-2">
+                            <Calculator className="w-4 h-4 text-blue-400" />
+                            <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+                              How the Risk Score is Calculated (Additive Mathematical Formula)
+                            </h4>
                           </div>
-                        ))}
-                        <div className="p-3.5 bg-slate-900 flex items-center justify-between font-bold text-sm">
-                          <span className="text-white">Total Calculated Risk Score</span>
-                          <span className={`font-mono ${getRiskColorPalette(analysisResult.risk_level).textColor}`}>
-                            {analysisResult.risk_score} / 100 ({getFriendlyLevelName(analysisResult.risk_level)})
+                          <span className="text-[11px] font-mono text-slate-400">
+                            Capped Maximum: 100 pts
                           </span>
+                        </div>
+
+                        {/* Interactive Formula Equation */}
+                        <div className="p-3 rounded-lg bg-slate-900 border border-slate-800 font-mono text-xs flex flex-wrap items-center gap-1.5 leading-relaxed">
+                          <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-bold">
+                            Baseline: 0
+                          </span>
+                          {analysisResult.score_breakdown.map((item, idx) => (
+                            <React.Fragment key={idx}>
+                              <span className="text-slate-500 font-bold">+</span>
+                              <span className="px-2 py-0.5 rounded bg-blue-950/80 text-blue-300 border border-blue-900/60 font-semibold" title={item.evidence}>
+                                {item.indicator} (+{item.points})
+                              </span>
+                            </React.Fragment>
+                          ))}
+                          <span className="text-slate-500 font-bold">=</span>
+                          <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-200">
+                            Subtotal: {analysisResult.score_breakdown.reduce((sum, it) => sum + it.points, 0)} pts
+                          </span>
+                          <span className="text-slate-500 font-bold">→</span>
+                          <span className={`px-2.5 py-0.5 rounded font-bold text-white shadow-sm ${
+                            analysisResult.risk_level === 'CRITICAL' ? 'bg-rose-600' :
+                            analysisResult.risk_level === 'HIGH' ? 'bg-orange-600' :
+                            analysisResult.risk_level === 'MEDIUM' ? 'bg-amber-600' : 'bg-emerald-600'
+                          }`}>
+                            Final Score: {analysisResult.risk_score} / 100 ({getFriendlyLevelName(analysisResult.risk_level)})
+                          </span>
+                        </div>
+
+                        {/* Proportional Contribution Bar */}
+                        {analysisResult.score_breakdown.length > 0 && (
+                          <div className="space-y-1.5 pt-1">
+                            <div className="flex justify-between text-[11px] text-slate-400">
+                              <span>Score Contribution by Triggered Indicator:</span>
+                              <span className="font-mono text-slate-300">{analysisResult.score_breakdown.length} triggered indicator(s)</span>
+                            </div>
+                            <div className="h-2.5 w-full rounded-full bg-slate-800 overflow-hidden flex">
+                              {analysisResult.score_breakdown.map((item, idx) => {
+                                const totalRaw = Math.max(1, analysisResult.score_breakdown.reduce((s, i) => s + i.points, 0));
+                                const pct = (item.points / totalRaw) * 100;
+                                const colors = ['bg-blue-500', 'bg-purple-500', 'bg-rose-500', 'bg-amber-500', 'bg-cyan-500', 'bg-orange-500'];
+                                return (
+                                  <div
+                                    key={idx}
+                                    style={{ width: `${pct}%` }}
+                                    className={`${colors[idx % colors.length]} h-full transition-all`}
+                                    title={`${item.indicator}: +${item.points} pts (${Math.round(pct)}%)`}
+                                  />
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Itemized Points Ledger Table */}
+                      <div className="rounded-xl bg-slate-950 border border-slate-800 overflow-hidden text-xs">
+                        <div className="p-3 bg-slate-900 border-b border-slate-800 flex justify-between items-center text-slate-200 font-bold">
+                          <span className="flex items-center gap-1.5">
+                            <Scale className="w-3.5 h-3.5 text-blue-400" />
+                            Itemized Indicator Ledger & Running Calculation
+                          </span>
+                          <span className="text-[11px] font-normal text-slate-400">
+                            Transparent Point Additions
+                          </span>
+                        </div>
+
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left border-collapse">
+                            <thead>
+                              <tr className="bg-slate-900/60 border-b border-slate-800 text-[10px] text-slate-400 uppercase tracking-wider">
+                                <th className="p-3">#</th>
+                                <th className="p-3">Triggered Indicator & Category</th>
+                                <th className="p-3">Severity Level</th>
+                                <th className="p-3">Matched Evidence in Text</th>
+                                <th className="p-3 text-right">Added Points</th>
+                                <th className="p-3 text-right">Running Total</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-850">
+                              <tr className="bg-slate-950/40 text-slate-400">
+                                <td className="p-3 font-mono text-[11px]">0</td>
+                                <td className="p-3 font-semibold text-slate-300">Baseline Starting Score</td>
+                                <td className="p-3"><span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">Neutral</span></td>
+                                <td className="p-3 font-mono text-[11px] text-slate-500">Unexamined input baseline</td>
+                                <td className="p-3 text-right font-mono font-bold text-slate-400">0 pts</td>
+                                <td className="p-3 text-right font-mono font-bold text-slate-400">0 / 100</td>
+                              </tr>
+                              {(() => {
+                                let running = 0;
+                                return analysisResult.score_breakdown.map((item, idx) => {
+                                  running += item.points;
+                                  const displayRunning = Math.min(100, running);
+                                  return (
+                                    <tr key={idx} className="hover:bg-slate-900/50 transition-colors">
+                                      <td className="p-3 font-mono text-[11px] text-slate-500">{idx + 1}</td>
+                                      <td className="p-3">
+                                        <div className="font-semibold text-slate-200">{item.indicator}</div>
+                                        <div className="text-[10px] text-slate-400 uppercase tracking-wider">{item.category}</div>
+                                      </td>
+                                      <td className="p-3">
+                                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase ${
+                                          item.severity === 'critical' ? 'bg-rose-950 text-rose-300' :
+                                          item.severity === 'high' ? 'bg-orange-950 text-orange-300' :
+                                          item.severity === 'medium' ? 'bg-amber-950 text-amber-300' :
+                                          'bg-slate-800 text-slate-300'
+                                        }`}>
+                                          {item.severity}
+                                        </span>
+                                      </td>
+                                      <td className="p-3 font-mono text-[11px] text-blue-300 max-w-xs truncate" title={item.evidence}>
+                                        {item.evidence}
+                                      </td>
+                                      <td className="p-3 text-right font-mono font-bold text-blue-400 text-sm">
+                                        +{item.points} pts
+                                      </td>
+                                      <td className="p-3 text-right font-mono font-bold text-slate-200">
+                                        {displayRunning} / 100
+                                      </td>
+                                    </tr>
+                                  );
+                                });
+                              })()}
+                            </tbody>
+                            <tfoot>
+                              <tr className="bg-slate-900 font-bold border-t border-slate-800">
+                                <td colSpan={4} className="p-3 text-white text-xs">
+                                  Final Calculated Risk Score (Capped at 100)
+                                </td>
+                                <td className="p-3 text-right font-mono text-sm text-blue-400">
+                                  +{analysisResult.score_breakdown.reduce((sum, it) => sum + it.points, 0)} pts
+                                </td>
+                                <td className={`p-3 text-right font-mono text-base ${getRiskColorPalette(analysisResult.risk_level).textColor}`}>
+                                  {analysisResult.risk_score} / 100
+                                </td>
+                              </tr>
+                            </tfoot>
+                          </table>
+                        </div>
+                      </div>
+
+                      {/* Transparent Scoring Formula Reference */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                        <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-1.5">
+                          <span className="font-bold text-slate-300 block">Empirical Severity Weights</span>
+                          <p className="text-[11px] text-slate-400 leading-relaxed">
+                            Each indicator contributes points based on verified phishing patterns:
+                          </p>
+                          <ul className="text-[11px] text-slate-400 space-y-0.5 list-disc list-inside">
+                            <li><strong>Critical Severity (+20 to +25 pts):</strong> Direct credential harvesting, password demands.</li>
+                            <li><strong>High Severity (+14 to +18 pts):</strong> Account suspension threats, raw IP hosts.</li>
+                            <li><strong>Medium Severity (+10 to +12 pts):</strong> Urgent deadlines, unfamiliar login alerts.</li>
+                            <li><strong>Low Severity (+5 to +8 pts):</strong> Minor link anomalies, missing HTTPS.</li>
+                          </ul>
+                        </div>
+
+                        <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-1.5">
+                          <span className="font-bold text-slate-300 block">Risk Classification Thresholds</span>
+                          <p className="text-[11px] text-slate-400 leading-relaxed">
+                            The accumulated point total determines the protective guidance tier:
+                          </p>
+                          <ul className="text-[11px] space-y-0.5">
+                            <li className="text-emerald-400"><strong>0 – 24 pts: Safe / Low Risk</strong> (Normal routine communication)</li>
+                            <li className="text-amber-400"><strong>25 – 49 pts: Caution / Medium Risk</strong> (Some suspicious signals detected)</li>
+                            <li className="text-orange-400"><strong>50 – 74 pts: High Risk</strong> (High probability of phishing attack)</li>
+                            <li className="text-rose-400"><strong>75 – 100 pts: Dangerous Scam</strong> (Aggressive coordinated attack)</li>
+                          </ul>
                         </div>
                       </div>
                     </div>
@@ -1980,9 +2556,210 @@ Engineering Operations Team`
         </div>
       )}
 
-      {/* Friendly Footer */}
-      <footer className="border-t border-slate-800/80 py-4 text-center text-xs text-slate-500">
-        Phishing Detector & Safety Lab · Built for Educational Cybersecurity Learning · Safe Sandbox
+      {/* Benchmark Comparison Matrix Modal */}
+      {showBenchmarkComparison && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto p-5 shadow-2xl space-y-4 text-xs">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <Scale className="w-4 h-4 text-blue-400" />
+                <span className="font-bold text-white text-sm">
+                  Side-by-Side Demonstration Comparison Matrix (3 Standard Benchmarks)
+                </span>
+              </div>
+              <button
+                onClick={() => setShowBenchmarkComparison(false)}
+                className="text-slate-400 hover:text-white p-1 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-slate-300 leading-relaxed">
+              This matrix demonstrates how our explainable rule engine and scoring model evaluate the three core tiers of cybersecurity email scenarios:
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {/* Benchmark Column 1: High Risk */}
+              <div className="p-4 rounded-xl bg-slate-950 border border-rose-900/60 flex flex-col justify-between space-y-3">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-rose-300 text-xs flex items-center gap-1">
+                      <AlertTriangle className="w-3.5 h-3.5 text-rose-400" /> 1. High-Risk Phishing
+                    </span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-950 text-rose-300 border border-rose-800">
+                      Score: ~87 / 100
+                    </span>
+                  </div>
+
+                  <div className="p-2 rounded bg-slate-900 font-mono text-[10px] text-slate-300 border border-slate-800 space-y-1">
+                    <div className="text-slate-500 font-sans font-semibold">Message Excerpt:</div>
+                    <div className="italic">"Your account will be suspended today due to unusual activity. Verify your account immediately using the link below: https://secure-account-verification..."</div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <span className="font-semibold text-slate-200 block text-[11px]">Why It Was Flagged:</span>
+                    <ul className="space-y-1 text-[11px] text-slate-300">
+                      <li className="flex items-center gap-1.5 text-rose-300">
+                        <Check className="w-3 h-3 text-rose-400 shrink-0" /> Urgent Language ("immediately", "today")
+                      </li>
+                      <li className="flex items-center gap-1.5 text-rose-300">
+                        <Check className="w-3 h-3 text-rose-400 shrink-0" /> Account Threat ("will be suspended")
+                      </li>
+                      <li className="flex items-center gap-1.5 text-rose-300">
+                        <Check className="w-3 h-3 text-rose-400 shrink-0" /> Credential Prompt ("verify account")
+                      </li>
+                      <li className="flex items-center gap-1.5 text-rose-300">
+                        <Check className="w-3 h-3 text-rose-400 shrink-0" /> Suspicious Link (deceptive domain)
+                      </li>
+                    </ul>
+                  </div>
+
+                  <div className="text-[11px] text-slate-400 leading-relaxed pt-1">
+                    <strong className="text-slate-300">Defensive Playbook:</strong> Do not click. Never enter credentials via unsolicited links. Flag as malicious phishing.
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => {
+                    setShowBenchmarkComparison(false);
+                    handleRunTestCase(testCases[0]);
+                  }}
+                  className="w-full py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-md shadow-rose-950 transition-colors"
+                >
+                  <Play className="w-3 h-3" /> Test This Case Now
+                </button>
+              </div>
+
+              {/* Benchmark Column 2: Medium Risk */}
+              <div className="p-4 rounded-xl bg-slate-950 border border-amber-900/60 flex flex-col justify-between space-y-3">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-amber-300 text-xs flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5 text-amber-400" /> 2. Medium-Risk Suspicious
+                    </span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-950 text-amber-300 border border-amber-800">
+                      Score: ~39 / 100
+                    </span>
+                  </div>
+
+                  <div className="p-2 rounded bg-slate-900 font-mono text-[10px] text-slate-300 border border-slate-800 space-y-1">
+                    <div className="text-slate-500 font-sans font-semibold">Message Excerpt:</div>
+                    <div className="italic">"We noticed a login from an unfamiliar device. Please review your account activity. Click here to update your information..."</div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <span className="font-semibold text-slate-200 block text-[11px]">Why It Was Flagged:</span>
+                    <ul className="space-y-1 text-[11px] text-slate-300">
+                      <li className="flex items-center gap-1.5 text-amber-300">
+                        <Check className="w-3 h-3 text-amber-400 shrink-0" /> Security Review Alert ("unfamiliar device")
+                      </li>
+                      <li className="flex items-center gap-1.5 text-amber-300">
+                        <Check className="w-3 h-3 text-amber-400 shrink-0" /> Call-to-Action Link ("Click here")
+                      </li>
+                      <li className="flex items-center gap-1.5 text-amber-300">
+                        <Check className="w-3 h-3 text-amber-400 shrink-0" /> External Redirect URL
+                      </li>
+                      <li className="flex items-center gap-1.5 text-slate-500 line-through">
+                        No direct ultimatum or countdown
+                      </li>
+                    </ul>
+                  </div>
+
+                  <div className="text-[11px] text-slate-400 leading-relaxed pt-1">
+                    <strong className="text-slate-300">Defensive Playbook:</strong> Verify independently. Open official service app or website directly instead of clicking.
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => {
+                    setShowBenchmarkComparison(false);
+                    handleRunTestCase(testCases[1]);
+                  }}
+                  className="w-full py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-md shadow-amber-950 transition-colors"
+                >
+                  <Play className="w-3 h-3" /> Test This Case Now
+                </button>
+              </div>
+
+              {/* Benchmark Column 3: Low Risk */}
+              <div className="p-4 rounded-xl bg-slate-950 border border-emerald-900/60 flex flex-col justify-between space-y-3">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-emerald-300 text-xs flex items-center gap-1">
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /> 3. Low-Risk / Benign
+                    </span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-800">
+                      Score: 0 / 100
+                    </span>
+                  </div>
+
+                  <div className="p-2 rounded bg-slate-900 font-mono text-[10px] text-slate-300 border border-slate-800 space-y-1">
+                    <div className="text-slate-500 font-sans font-semibold">Message Excerpt:</div>
+                    <div className="italic">"Weekly Team Engineering Digest #42. Sprint planning begins Tuesday at 10:00 AM UTC. Please review the architectural RFC doc on our wiki..."</div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <span className="font-semibold text-slate-200 block text-[11px]">Why It Was Flagged:</span>
+                    <ul className="space-y-1 text-[11px] text-emerald-300">
+                      <li className="flex items-center gap-1.5">
+                        <Check className="w-3 h-3 text-emerald-400 shrink-0" /> Zero panic or pressure tactics
+                      </li>
+                      <li className="flex items-center gap-1.5">
+                        <Check className="w-3 h-3 text-emerald-400 shrink-0" /> Zero account threats or ultimatums
+                      </li>
+                      <li className="flex items-center gap-1.5">
+                        <Check className="w-3 h-3 text-emerald-400 shrink-0" /> Zero credential harvesting prompts
+                      </li>
+                      <li className="flex items-center gap-1.5">
+                        <Check className="w-3 h-3 text-emerald-400 shrink-0" /> Zero deceptive link manipulation
+                      </li>
+                    </ul>
+                  </div>
+
+                  <div className="text-[11px] text-slate-400 leading-relaxed pt-1">
+                    <strong className="text-slate-300">Defensive Playbook:</strong> Harmless routine communication. Normal handling appropriate.
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => {
+                    setShowBenchmarkComparison(false);
+                    handleRunTestCase(testCases[2]);
+                  }}
+                  className="w-full py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-md shadow-emerald-950 transition-colors"
+                >
+                  <Play className="w-3 h-3" /> Test This Case Now
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Disclaimer */}
+            <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 text-[11px] text-slate-400 flex items-start gap-2">
+              <Info className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
+              <span>
+                <strong>Disclaimer:</strong> This comparison demonstrates synthetic testing scenarios. Automated analysis provides threat-detection guidance and indication, not a 100% guarantee of safety or malice.
+              </span>
+            </div>
+
+            <div className="pt-2 flex justify-end">
+              <button
+                onClick={() => setShowBenchmarkComparison(false)}
+                className="px-4 py-2 rounded bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs cursor-pointer"
+              >
+                Close Matrix
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Friendly Footer with Security Disclaimer */}
+      <footer className="border-t border-slate-800/80 py-6 text-center text-xs text-slate-500 space-y-2 px-4">
+        <div>Phishing Detector & Safety Lab · Built for Educational Cybersecurity Learning & Threat Analysis</div>
+        <div className="text-[11px] text-slate-500 max-w-2xl mx-auto leading-relaxed">
+          ⚠️ <strong>Security Disclaimer:</strong> This application provides automated heuristic and AI-assisted indicators for educational guidance. It is an indication and not a 100% guarantee that a message or web link is safe or malicious. Always exercise caution and verify unexpected requests through trusted channels.
+        </div>
       </footer>
     </div>
   );
